@@ -224,10 +224,11 @@ def consultar_medicoes():
             SELECT
                 id,
                 equipamento,
-                ts AS timestamp,
-                seq AS sequencia,
-                pulse AS pulsos,
-                volume
+                sequencia,
+                timestamp_esp32,
+                pulsos,
+                volume,
+                recebido_em
             FROM medicoes
             ORDER BY id ASC
         """)
@@ -271,10 +272,11 @@ def consultar_ultimas():
             SELECT
                 id,
                 equipamento,
-                ts AS timestamp,
-                seq AS sequencia,
-                pulse AS pulsos,
-                volume
+                sequencia,
+                timestamp_esp32,
+                pulsos,
+                volume,
+                recebido_em
             FROM medicoes
             ORDER BY id DESC
             LIMIT 20
@@ -304,42 +306,6 @@ def consultar_ultimas():
 # INICIALIZAÇÃO
 # ============================================================
 
-# ============================================================
-# DIAGNOSTICO - ESTRUTURA DO BANCO
-# ============================================================
 
-@app.route("/api/v1/estrutura", methods=["GET"])
-def estrutura_banco():
 
-    try:
 
-        conexao = conectar_banco()
-
-        cursor = conexao.cursor(
-            cursor_factory=RealDictCursor
-        )
-
-        cursor.execute("""
-            SELECT
-                column_name,
-                data_type
-            FROM information_schema.columns
-            WHERE table_name = 'medicoes'
-            ORDER BY ordinal_position
-        """)
-
-        colunas = cursor.fetchall()
-
-        cursor.close()
-        conexao.close()
-
-        return jsonify({
-            "tabela": "medicoes",
-            "colunas": colunas
-        }), 200
-
-    except Exception as erro:
-
-        return jsonify({
-            "erro": str(erro)
-        }), 500
