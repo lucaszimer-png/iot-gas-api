@@ -324,9 +324,8 @@ def consultar_ultimas():
         if conexao:
             conexao.close()
 
-
 # ============================================================
-# INICIALIZAÇÃO
+# DASHBOARD
 # ============================================================
 
 # ============================================================
@@ -346,6 +345,576 @@ def dashboard():
         cursor = conexao.cursor(
             cursor_factory=RealDictCursor
         )
+
+        # ----------------------------------------------------
+        # RESUMO
+        # ----------------------------------------------------
+
+        cursor.execute("""
+            SELECT
+                COUNT(*) AS registros,
+                COALESCE(SUM(pulsos), 0) AS pulsos_totais,
+                COALESCE(SUM(volume), 0) AS volume_total
+            FROM medicoes
+        """)
+
+        resumo = cursor.fetchone()
+
+        # ----------------------------------------------------
+        # ÚLTIMAS 20 MEDIÇÕES
+        # ----------------------------------------------------
+
+        cursor.execute("""
+            SELECT
+                equipamento,
+                sequencia,
+                pulsos,
+                volume,
+                timestamp_esp32,
+                recebido_em
+            FROM medicoes
+            ORDER BY id DESC
+            LIMIT 20
+        """)
+
+        medicoes = cursor.fetchall()
+
+        # ----------------------------------------------------
+        # INVERTER PARA O GRÁFICO
+        # ----------------------------------------------------
+
+        medicoes_grafico = list(reversed(medicoes))
+
+        sequencias = [
+            m["sequencia"]
+            for m in medicoes_grafico
+        ]
+
+        pulsos = [
+            m["pulsos"]
+            for m in medicoes_grafico
+        ]
+
+        volumes = [
+            float(m["volume"])
+            for m in medicoes_grafico
+        ]
+
+        # ----------------------------------------------------
+        # ÚLTIMA MEDIÇÃO
+        # ----------------------------------------------------
+
+        ultimo = medicoes[0] if medicoes else None
+
+        if ultimo:
+
+            ultima_medicao = f"""
+                <div class="ultimo-grid">
+
+                    <div>
+                        <strong>Equipamento</strong>
+                        <span>{ultimo["equipamento"]}</span>
+                    </div>
+
+                    <div>
+                        <strong>Sequência</strong>
+                        <span>{ultimo["sequencia"]}</span>
+                    </div>
+
+                    <div>
+                        <strong>Pulsos</strong>
+                        <span>{ultimo["pulsos"]}</span>
+                    </div>
+
+                    <div>
+                        <strong>Volume</strong>
+                        <span>{float(ultimo["volume"]):.3f} m³</span>
+                    </div>
+
+                    <div>
+                        <strong>Recebido em</strong>
+                        <span>{ultimo["recebido_em"]}</span>
+                    </div>
+
+                </div>
+            """
+
+        else:
+
+            ultima_medicao = """
+                <p>Nenhuma medição registrada.</p>
+            """
+
+        # ----------------------------------------------------
+        # TABELA
+        # ----------------------------------------------------
+
+        linhas = ""
+
+        for m in medicoes:
+
+            linhas += f"""
+            <tr>
+                <td>{m["equipamento"]}</td>
+                <td>{m["sequencia"]}</td>
+                <td>{m["pulsos"]}</td>
+                <td>{float(m["volume"]):.3f}</td>
+                <td>{m["recebido_em"]}</td>
+            </tr>
+            """
+
+        # ----------------------------------------------------
+        # HTML
+        # ----------------------------------------------------
+
+        html = f"""
+        <!DOCTYPE html>
+
+        <html lang="pt-BR">
+
+        <head>
+
+            <meta charset="UTF-8">
+
+            <meta name="viewport"
+                  content="width=device-width, initial-scale=1.0">
+
+            <meta http-equiv="refresh" content="10">
+
+            <title>IoT Gas - Dashboard</title>
+
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+            <style>
+
+                body {{
+                    font-family: Arial, sans-serif;
+                    margin: 0;
+                    padding: 20px;
+                    background: #f4f4f4;
+                }}
+
+                .container {{
+                    max-width: 1200px;
+                    margin: auto;
+                }}
+
+                h1 {{
+                    text-align: center;
+                    margin-bottom: 30px;
+                }}
+
+                .cards {{
+                    display: grid;
+                    grid-template-columns:
+                        repeat(auto-fit, minmax(220px, 1fr));
+
+                    gap: 20px;
+                    margin-bottom: 25px;
+                }}
+
+                .card {{
+                    background: white;
+                    padding: 20px;
+                    border-radius: 10px;
+
+                    box-shadow:
+                        0 2px 8px rgba(0,0,0,0.10);
+                }}
+
+                .card-titulo {{
+                    font-size: 15px;
+                    color: #666;
+                }}
+
+                .valor {{
+                    font-size: 30px;
+                    font-weight: bold;
+                    margin-top: 10px;
+                }}
+
+                .online {{
+                    color: green;
+                }}
+
+                .graficos {{
+                    display: grid;
+                    grid-template-columns:
+                        repeat(auto-fit, minmax(400px, 1fr));
+
+                    gap: 20px;
+                    margin-bottom: 25px;
+                }}
+
+                .grafico {{
+                    background: white;
+                    padding: 20px;
+                    border-radius: 10px;
+
+                    box-shadow:
+                        0 2px 8px rgba(0,0,0,0.10);
+                }}
+
+                .ultimo {{
+                    background: white;
+                    padding: 20px;
+                    border-radius: 10px;
+
+                    box-shadow:
+                        0 2px 8px rgba(0,0,0,0.10);
+
+                    margin-bottom: 25px;
+                }}
+
+                .ultimo-grid {{
+                    display: grid;
+                    grid-template-columns:
+                        repeat(auto-fit, minmax(180px, 1fr));
+
+                    gap: 20px;
+                }}
+
+                .ultimo-grid div {{
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }}
+
+                .ultimo-grid span {{
+                    font-size: 18px;
+                }}
+
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    background: white;
+                }}
+
+                th, td {{
+                    padding: 12px;
+                    border-bottom: 1px solid #ddd;
+                    text-align: center;
+                }}
+
+                th {{
+                    background: #222;
+                    color: white;
+                }}
+
+                .tabela {{
+                    background: white;
+                    padding: 20px;
+                    border-radius: 10px;
+
+                    box-shadow:
+                        0 2px 8px rgba(0,0,0,0.10);
+                }}
+
+                .atualizacao {{
+                    text-align: center;
+                    color: #777;
+                    margin-top: 20px;
+                    font-size: 13px;
+                }}
+
+                @media(max-width: 700px) {{
+
+                    body {{
+                        padding: 10px;
+                    }}
+
+                    .graficos {{
+                        grid-template-columns: 1fr;
+                    }}
+
+                    table {{
+                        font-size: 11px;
+                    }}
+
+                    th, td {{
+                        padding: 7px 3px;
+                    }}
+
+                }}
+
+            </style>
+
+        </head>
+
+        <body>
+
+        <div class="container">
+
+            <h1>IoT Gas - Monitoramento</h1>
+
+
+            <!-- ========================================= -->
+            <!-- INDICADORES -->
+            <!-- ========================================= -->
+
+            <div class="cards">
+
+                <div class="card">
+
+                    <div class="card-titulo">
+                        Status da API
+                    </div>
+
+                    <div class="valor online">
+                        ONLINE
+                    </div>
+
+                </div>
+
+
+                <div class="card">
+
+                    <div class="card-titulo">
+                        Registros
+                    </div>
+
+                    <div class="valor">
+                        {resumo["registros"]}
+                    </div>
+
+                </div>
+
+
+                <div class="card">
+
+                    <div class="card-titulo">
+                        Pulsos totais
+                    </div>
+
+                    <div class="valor">
+                        {resumo["pulsos_totais"]}
+                    </div>
+
+                </div>
+
+
+                <div class="card">
+
+                    <div class="card-titulo">
+                        Volume total
+                    </div>
+
+                    <div class="valor">
+                        {float(resumo["volume_total"]):.3f} m³
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- ========================================= -->
+            <!-- ÚLTIMA MEDIÇÃO -->
+            <!-- ========================================= -->
+
+            <div class="ultimo">
+
+                <h2>Última medição</h2>
+
+                {ultima_medicao}
+
+            </div>
+
+
+            <!-- ========================================= -->
+            <!-- GRÁFICOS -->
+            <!-- ========================================= -->
+
+            <div class="graficos">
+
+                <div class="grafico">
+
+                    <h2>Pulsos por registro</h2>
+
+                    <canvas id="graficoPulsos"></canvas>
+
+                </div>
+
+
+                <div class="grafico">
+
+                    <h2>Volume por registro</h2>
+
+                    <canvas id="graficoVolume"></canvas>
+
+                </div>
+
+            </div>
+
+
+            <!-- ========================================= -->
+            <!-- TABELA -->
+            <!-- ========================================= -->
+
+            <div class="tabela">
+
+                <h2>Últimas medições</h2>
+
+                <table>
+
+                    <tr>
+                        <th>Equipamento</th>
+                        <th>Seq.</th>
+                        <th>Pulsos</th>
+                        <th>Volume (m³)</th>
+                        <th>Recebido em</th>
+                    </tr>
+
+                    {linhas}
+
+                </table>
+
+            </div>
+
+
+            <div class="atualizacao">
+
+                Página atualizada automaticamente a cada 10 segundos.
+
+            </div>
+
+        </div>
+
+
+        <!-- ============================================= -->
+        <!-- JAVASCRIPT DOS GRÁFICOS -->
+        <!-- ============================================= -->
+
+        <script>
+
+            const sequencias = {sequencias};
+
+            const pulsos = {pulsos};
+
+            const volumes = {volumes};
+
+
+            // ------------------------------------------------
+            // GRÁFICO DE PULSOS
+            // ------------------------------------------------
+
+            new Chart(
+                document.getElementById("graficoPulsos"),
+                {{
+
+                    type: "line",
+
+                    data: {{
+
+                        labels: sequencias,
+
+                        datasets: [{{
+
+                            label: "Pulsos",
+
+                            data: pulsos,
+
+                            borderWidth: 2,
+
+                            tension: 0.2
+
+                        }}]
+
+                    }},
+
+                    options: {{
+
+                        responsive: true,
+
+                        scales: {{
+
+                            y: {{
+
+                                beginAtZero: true
+
+                            }}
+
+                        }}
+
+                    }}
+
+                }}
+            );
+
+
+            // ------------------------------------------------
+            // GRÁFICO DE VOLUME
+            // ------------------------------------------------
+
+            new Chart(
+                document.getElementById("graficoVolume"),
+                {{
+
+                    type: "line",
+
+                    data: {{
+
+                        labels: sequencias,
+
+                        datasets: [{{
+
+                            label: "Volume (m³)",
+
+                            data: volumes,
+
+                            borderWidth: 2,
+
+                            tension: 0.2
+
+                        }}]
+
+                    }},
+
+                    options: {{
+
+                        responsive: true,
+
+                        scales: {{
+
+                            y: {{
+
+                                beginAtZero: true
+
+                            }}
+
+                        }}
+
+                    }}
+
+                }}
+            );
+
+        </script>
+
+        </body>
+
+        </html>
+        """
+
+        return html
+
+    except Exception as erro:
+
+        print("ERRO NO DASHBOARD:")
+        print(erro)
+
+        return f"""
+        <h1>Erro ao carregar dashboard</h1>
+        <p>{erro}</p>
+        """, 500
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if conexao:
+            conexao.close()
 
         # ----------------------------------------------------
         # RESUMO
