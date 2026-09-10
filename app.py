@@ -304,14 +304,42 @@ def consultar_ultimas():
 # INICIALIZAÇÃO
 # ============================================================
 
-criar_tabela()
+# ============================================================
+# DIAGNOSTICO - ESTRUTURA DO BANCO
+# ============================================================
 
+@app.route("/api/v1/estrutura", methods=["GET"])
+def estrutura_banco():
 
-if __name__ == "__main__":
+    try:
 
-    porta = int(os.environ.get("PORT", 5000))
+        conexao = conectar_banco()
 
-    app.run(
-        host="0.0.0.0",
-        port=porta
-    )
+        cursor = conexao.cursor(
+            cursor_factory=RealDictCursor
+        )
+
+        cursor.execute("""
+            SELECT
+                column_name,
+                data_type
+            FROM information_schema.columns
+            WHERE table_name = 'medicoes'
+            ORDER BY ordinal_position
+        """)
+
+        colunas = cursor.fetchall()
+
+        cursor.close()
+        conexao.close()
+
+        return jsonify({
+            "tabela": "medicoes",
+            "colunas": colunas
+        }), 200
+
+    except Exception as erro:
+
+        return jsonify({
+            "erro": str(erro)
+        }), 500
