@@ -34,10 +34,11 @@ def criar_tabela():
         CREATE TABLE IF NOT EXISTS medicoes (
             id SERIAL PRIMARY KEY,
             equipamento TEXT NOT NULL,
-            timestamp BIGINT NOT NULL,
             sequencia INTEGER NOT NULL,
+            timestamp_esp32 BIGINT NOT NULL,
             pulsos INTEGER NOT NULL,
-            volume REAL NOT NULL,
+            volume NUMERIC NOT NULL,
+            recebido_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(equipamento, sequencia)
         );
     """)
@@ -69,6 +70,9 @@ def inicio():
 
 @app.route("/api/v1/medicao", methods=["POST"])
 def receber_medicao():
+
+    conexao = None
+    cursor = None
 
     try:
 
@@ -132,9 +136,6 @@ def receber_medicao():
 
         if registro:
 
-            cursor.close()
-            conexao.close()
-
             print("Registro já existe no banco.")
 
             return jsonify({
@@ -152,8 +153,8 @@ def receber_medicao():
             INSERT INTO medicoes
             (
                 equipamento,
-                timestamp,
                 sequencia,
+                timestamp_esp32,
                 pulsos,
                 volume
             )
@@ -161,8 +162,8 @@ def receber_medicao():
             RETURNING id
         """, (
             equipamento,
-            timestamp,
             sequencia,
+            timestamp,
             pulsos,
             volume
         ))
@@ -171,18 +172,13 @@ def receber_medicao():
 
         conexao.commit()
 
-        cursor.close()
-        conexao.close()
-
         print("")
         print("MEDICAO GRAVADA NO BANCO")
         print("ID banco:", banco_id)
         print("Equipamento:", equipamento)
         print("Sequencia:", sequencia)
-
-        # ----------------------------------------------------
-        # ACK
-        # ----------------------------------------------------
+        print("Pulsos:", pulsos)
+        print("Volume:", volume)
 
         return jsonify({
             "ack": True,
@@ -194,6 +190,9 @@ def receber_medicao():
 
     except Exception as erro:
 
+        if conexao:
+            conexao.rollback()
+
         print("")
         print("ERRO AO GRAVAR MEDICAO:")
         print(erro)
@@ -204,6 +203,14 @@ def receber_medicao():
             "mensagem": str(erro)
         }), 500
 
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if conexao:
+            conexao.close()
+
 
 # ============================================================
 # CONSULTAR TODAS AS MEDIÇÕES
@@ -211,6 +218,9 @@ def receber_medicao():
 
 @app.route("/api/v1/medicoes", methods=["GET"])
 def consultar_medicoes():
+
+    conexao = None
+    cursor = None
 
     try:
 
@@ -235,9 +245,6 @@ def consultar_medicoes():
 
         medicoes = cursor.fetchall()
 
-        cursor.close()
-        conexao.close()
-
         return jsonify({
             "total": len(medicoes),
             "medicoes": medicoes
@@ -252,13 +259,24 @@ def consultar_medicoes():
             "erro": str(erro)
         }), 500
 
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if conexao:
+            conexao.close()
+
 
 # ============================================================
-# CONSULTAR ÚLTIMAS MEDIÇÕES
+# CONSULTAR ÚLTIMAS 20 MEDIÇÕES
 # ============================================================
 
 @app.route("/api/v1/medicoes/ultimas", methods=["GET"])
 def consultar_ultimas():
+
+    conexao = None
+    cursor = None
 
     try:
 
@@ -284,9 +302,6 @@ def consultar_ultimas():
 
         medicoes = cursor.fetchall()
 
-        cursor.close()
-        conexao.close()
-
         return jsonify({
             "total": len(medicoes),
             "medicoes": medicoes
@@ -301,11 +316,27 @@ def consultar_ultimas():
             "erro": str(erro)
         }), 500
 
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if conexao:
+            conexao.close()
+
 
 # ============================================================
 # INICIALIZAÇÃO
 # ============================================================
 
+criar_tabela()
 
 
+if __name__ == "__main__":
 
+    porta = int(os.environ.get("PORT", 5000))
+
+    app.run(
+        host="0.0.0.0",
+        port=porta
+    )
