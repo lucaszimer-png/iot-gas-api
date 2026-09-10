@@ -329,14 +329,274 @@ def consultar_ultimas():
 # INICIALIZAÇÃO
 # ============================================================
 
-criar_tabela()
+# ============================================================
+# DASHBOARD
+# ============================================================
+
+@app.route("/dashboard", methods=["GET"])
+def dashboard():
+
+    conexao = None
+    cursor = None
+
+    try:
+
+        conexao = conectar_banco()
+
+        cursor = conexao.cursor(
+            cursor_factory=RealDictCursor
+        )
+
+        # ----------------------------------------------------
+        # RESUMO
+        # ----------------------------------------------------
+
+        cursor.execute("""
+            SELECT
+                COUNT(*) AS registros,
+                COALESCE(SUM(pulsos), 0) AS pulsos_totais,
+                COALESCE(SUM(volume), 0) AS volume_total
+            FROM medicoes
+        """)
+
+        resumo = cursor.fetchone()
+
+        # ----------------------------------------------------
+        # ÚLTIMAS 20 MEDIÇÕES
+        # ----------------------------------------------------
+
+        cursor.execute("""
+            SELECT
+                equipamento,
+                sequencia,
+                pulsos,
+                volume,
+                timestamp_esp32,
+                recebido_em
+            FROM medicoes
+            ORDER BY id DESC
+            LIMIT 20
+        """)
+
+        medicoes = cursor.fetchall()
+
+        # ----------------------------------------------------
+        # ÚLTIMO REGISTRO
+        # ----------------------------------------------------
+
+        ultimo = medicoes[0] if medicoes else None
+
+        # ----------------------------------------------------
+        # GERAR TABELA
+        # ----------------------------------------------------
+
+        linhas = ""
+
+        for m in medicoes:
+
+            linhas += f"""
+            <tr>
+                <td>{m['equipamento']}</td>
+                <td>{m['sequencia']}</td>
+                <td>{m['pulsos']}</td>
+                <td>{float(m['volume']):.3f}</td>
+                <td>{m['recebido_em']}</td>
+            </tr>
+            """
+
+        # ----------------------------------------------------
+        # HTML
+        # ----------------------------------------------------
+
+        html = f"""
+        <!DOCTYPE html>
+
+        <html lang="pt-BR">
+
+        <head>
+
+            <meta charset="UTF-8">
+
+            <meta name="viewport"
+                  content="width=device-width, initial-scale=1.0">
+
+            <title>IoT Gas - Dashboard</title>
+
+            <style>
+
+                body {{
+                    font-family: Arial, sans-serif;
+                    margin: 0;
+                    padding: 20px;
+                    background: #f4f4f4;
+                }}
+
+                h1 {{
+                    text-align: center;
+                }}
+
+                .container {{
+                    max-width: 1100px;
+                    margin: auto;
+                }}
+
+                .cards {{
+                    display: grid;
+                    grid-template-columns:
+                        repeat(auto-fit, minmax(220px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }}
+
+                .card {{
+                    background: white;
+                    padding: 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    text-align: center;
+                }}
+
+                .valor {{
+                    font-size: 28px;
+                    font-weight: bold;
+                    margin-top: 10px;
+                }}
+
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    background: white;
+                }}
+
+                th, td {{
+                    padding: 12px;
+                    border-bottom: 1px solid #ddd;
+                    text-align: center;
+                }}
+
+                th {{
+                    background: #222;
+                    color: white;
+                }}
+
+                .online {{
+                    color: green;
+                    font-weight: bold;
+                }}
+
+                @media(max-width: 700px) {{
+
+                    table {{
+                        font-size: 12px;
+                    }}
+
+                    th, td {{
+                        padding: 8px 4px;
+                    }}
+
+                }}
+
+            </style>
+
+        </head>
+
+        <body>
+
+        <div class="container">
+
+            <h1>IoT Gas - Monitoramento</h1>
+
+            <div class="cards">
+
+                <div class="card">
+
+                    <div>Status da API</div>
+
+                    <div class="valor online">
+                        ONLINE
+                    </div>
+
+                </div>
 
 
-if __name__ == "__main__":
+                <div class="card">
 
-    porta = int(os.environ.get("PORT", 5000))
+                    <div>Registros</div>
 
-    app.run(
-        host="0.0.0.0",
-        port=porta
-    )
+                    <div class="valor">
+                        {resumo['registros']}
+                    </div>
+
+                </div>
+
+
+                <div class="card">
+
+                    <div>Pulsos totais</div>
+
+                    <div class="valor">
+                        {resumo['pulsos_totais']}
+                    </div>
+
+                </div>
+
+
+                <div class="card">
+
+                    <div>Volume total</div>
+
+                    <div class="valor">
+                        {float(resumo['volume_total']):.3f} m³
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="card">
+
+                <h2>Últimas medições</h2>
+
+                <table>
+
+                    <tr>
+                        <th>Equipamento</th>
+                        <th>Seq.</th>
+                        <th>Pulsos</th>
+                        <th>Volume (m³)</th>
+                        <th>Recebido em</th>
+                    </tr>
+
+                    {linhas}
+
+                </table>
+
+            </div>
+
+        </div>
+
+        </body>
+
+        </html>
+        """
+
+        return html
+
+    except Exception as erro:
+
+        print("ERRO NO DASHBOARD:")
+        print(erro)
+
+        return f"""
+        <h1>Erro ao carregar dashboard</h1>
+        <p>{erro}</p>
+        """, 500
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if conexao:
+            conexao.close()
