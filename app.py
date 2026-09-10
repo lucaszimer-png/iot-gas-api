@@ -224,9 +224,9 @@ def consultar_medicoes():
             SELECT
                 id,
                 equipamento,
-                timestamp,
-                sequencia,
-                pulsos,
+                ts AS timestamp,
+                seq AS sequencia,
+                pulse AS pulsos,
                 volume
             FROM medicoes
             ORDER BY id ASC
@@ -271,9 +271,9 @@ def consultar_ultimas():
             SELECT
                 id,
                 equipamento,
-                timestamp,
-                sequencia,
-                pulsos,
+                ts AS timestamp,
+                seq AS sequencia,
+                pulse AS pulsos,
                 volume
             FROM medicoes
             ORDER BY id DESC
